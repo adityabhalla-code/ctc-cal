@@ -1,0 +1,2192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="CTC Calc" />
+  <title>Indian CTC Analyzer</title>
+  <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+  <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+  <script>window.react = window.React; /* lucide-react UMD reads the lowercase global */</script>
+  <script crossorigin src="https://unpkg.com/lucide-react@0.460.0/dist/umd/lucide-react.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+</head>
+<body class="bg-slate-50">
+  <div id="root"><p style="font-family:sans-serif;padding:2rem;color:#64748b">Loading calculator…</p></div>
+  <script type="text/babel" data-presets="react">
+const { useState, useMemo, useRef, useEffect } = React;
+const {
+  Building2,
+  Calculator,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Coins,
+  FileSpreadsheet,
+  Info,
+  Landmark,
+  MapPin,
+  Percent,
+  PiggyBank,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  AlertTriangle,
+  Briefcase,
+  SlidersHorizontal,
+  ArrowRight,
+  RotateCcw
+} = LucideReact;
+
+// ============================================================================
+// 1. COMPANY COMPENSATION STRUCTURE DATABASE (45+ MAJOR EMPLOYERS + ARCHETYPES)
+// ============================================================================
+const COMPANY_DATABASE = [
+  // Big Tech / FAANG
+  {
+    name: 'Google',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full', // 12% of Basic
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'GSUs vest front-loaded (38% Y1, 32% Y2, 20% Y3, 10% Y4) outside cash CTC; taxed as perquisite at vesting.',
+    policySummary: '40% Basic, Full 12% EPF, 15% target bonus, 14% Employer NPS option available.'
+  },
+  {
+    name: 'Microsoft',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'TS',
+    rsuNote: 'On-hire stock awards vest 25% annually over 4 years; annual stock refreshers based on rewards.',
+    policySummary: '40% Basic, Full 12% EPF, 0–20% annual bonus (10% target), supports 80CCD(2) NPS.'
+  },
+  {
+    name: 'Amazon',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped', // ₹1,800/mo ceiling common in Amazon India
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: '100% Fixed Cash base (no annual cash bonus); Year 1 & 2 signing bonuses bridge back-loaded RSUs (5/15/40/40%).',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF default (maximizes monthly liquidity), 0% annual variable.'
+  },
+  {
+    name: 'Meta',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'Quarterly RSU vesting (25% per year); Gurgaon/NCR hub has ₹0 Professional Tax.',
+    policySummary: '40% Basic, Full 12% EPF, 15% performance bonus multiplier.'
+  },
+  {
+    name: 'Apple',
+    category: 'Big Tech / Product',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Semi-annual RSU vesting; ESPP discount up to 15% taxed on difference at purchase.',
+    policySummary: '45% Basic, Full 12% EPF, ~10% discretionary bonus, flexible meal/telecom allowances.'
+  },
+  {
+    name: 'Adobe',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'Quarterly RSU vesting over 4 years + generous ESPP program; Noida/Bengaluru hubs.',
+    policySummary: '40% Basic, Full 12% EPF, 10% AIP bonus, Employer NPS supported.'
+  },
+  {
+    name: 'Atlassian',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Quarterly RSU vesting; remote-first policy across India.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF option, 10% annual bonus.'
+  },
+  {
+    name: 'Salesforce',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'TS',
+    rsuNote: '25% Year-1 cliff then quarterly RSU vesting; wellness reimbursement perks.',
+    policySummary: '40% Basic, Full 12% EPF, 15% Kokua bonus, 80CCD(2) NPS available.'
+  },
+  {
+    name: 'Uber',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Monthly/Quarterly RSU vesting after 1-year cliff; high cash + RSU mix.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF default, 15% target bonus.'
+  },
+  {
+    name: 'Nvidia',
+    category: 'Big Tech / Semiconductors',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: '100% Fixed Base Cash + 4-year quarterly RSU grants + high-return ESPP.',
+    policySummary: '45% Basic, Full 12% EPF, 0% variable bonus (all cash is fixed).'
+  },
+  {
+    name: 'Qualcomm',
+    category: 'Big Tech / Semiconductors',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'TS',
+    rsuNote: 'Semi-annual RSU vesting over 3–4 years + 15% ESPP discount.',
+    policySummary: '45% Basic, Full 12% EPF, ~10% annual incentive plan.'
+  },
+  {
+    name: 'Intuit',
+    category: 'Big Tech / Product',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Annual RSU grants vesting over 4 years + ESPP.',
+    policySummary: '40% Basic, Full 12% EPF, 15% Spotlight/AIP bonus.'
+  },
+  {
+    name: 'Oracle',
+    category: 'Enterprise Tech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'OCI roles include 4-year RSUs; base cash is typically 100% fixed without annual bonus.',
+    policySummary: '40% Basic, Full 12% EPF, 100% fixed cash base.'
+  },
+  {
+    name: 'SAP Labs',
+    category: 'Enterprise Tech',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Includes Move/Own SAP stock purchase match + annual bonus.',
+    policySummary: '45% Basic, Full 12% EPF, 10% variable bonus, strong NPS support.'
+  },
+
+  // Indian Tech Unicorns & Startups
+  {
+    name: 'Flipkart',
+    category: 'Indian Tech / E-Commerce',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Flipkart ESOPs (FSOPs) vest 25% annually; periodic liquidity buybacks.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF option (or 12% opt-in), 10% performance bonus.'
+  },
+  {
+    name: 'Swiggy',
+    category: 'Indian Tech / Consumer',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: false,
+    defaultState: 'KA',
+    rsuNote: 'Listed equity ESOPs post-IPO; standard 4-year vesting.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF to boost monthly cash in-hand, 10% variable.'
+  },
+  {
+    name: 'Zomato / Eternal',
+    category: 'Indian Tech / Consumer',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: false,
+    variablePct: 0,
+    npsAllowed: false,
+    defaultState: 'HR',
+    rsuNote: '100% fixed cash structure in most engineering/product roles + listed ESOPs; Gurgaon HQ.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 0% variable bonus (high fixed cash).'
+  },
+  {
+    name: 'Razorpay',
+    category: 'Indian Fintech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'ESOPs granted across mid-to-senior levels with periodic buyback programs.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF default, 10% variable bonus.'
+  },
+  {
+    name: 'CRED',
+    category: 'Indian Fintech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: false,
+    variablePct: 0,
+    npsAllowed: false,
+    defaultState: 'KA',
+    rsuNote: 'High fixed cash + ESOP wealth creation model; zero annual variable deduction.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 100% fixed cash CTC.'
+  },
+  {
+    name: 'Zerodha',
+    category: 'Indian Fintech',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Profit-sharing bonuses paid based on company performance; zero variable clawback in base CTC.',
+    policySummary: '50% Basic, Full 12% EPF, 100% fixed CTC.'
+  },
+  {
+    name: 'PhonePe',
+    category: 'Indian Fintech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Annual ESOP grants with 4-year vesting; high fixed-to-variable ratio.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF option, 10% annual bonus.'
+  },
+  {
+    name: 'Paytm',
+    category: 'Indian Fintech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: false,
+    defaultState: 'HR',
+    rsuNote: 'Listed ESOPs; Noida/NCR base.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 10% variable.'
+  },
+  {
+    name: 'Meesho',
+    category: 'Indian Tech / E-Commerce',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Boundaryless workplace policy + Meeho ESOPs with buyback track record.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 10% performance variable.'
+  },
+  {
+    name: 'Ola / Krutrim',
+    category: 'Indian Tech / Mobility & AI',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: false,
+    defaultState: 'KA',
+    rsuNote: 'ESOP-heavy senior packages; 10–15% variable component.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 15% variable.'
+  },
+  {
+    name: 'Zepto',
+    category: 'Indian Tech / Quick Commerce',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: false,
+    variablePct: 0,
+    npsAllowed: false,
+    defaultState: 'KA',
+    rsuNote: 'High cash + ESOP grants for rapid-growth roles.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 100% fixed cash.'
+  },
+  {
+    name: 'Groww',
+    category: 'Indian Fintech',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'ESOPs granted across tech & product; employee-friendly cash structure.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 10% annual variable.'
+  },
+
+  // Consulting & Strategy Firms
+  {
+    name: 'McKinsey & Company',
+    category: 'Management Consulting',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 20,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'Substantial year-end performance bonus (15–25%) + non-contributory retirement perks.',
+    policySummary: '50% Basic, Full 12% EPF, ~20% performance bonus, 80CCD(2) NPS available.'
+  },
+  {
+    name: 'Boston Consulting Group (BCG)',
+    category: 'Management Consulting',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 20,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'High variable bonus potential (15–30%) paid annually + profit-sharing retirement fund.',
+    policySummary: '50% Basic, Full 12% EPF, ~20% target variable bonus.'
+  },
+  {
+    name: 'Bain & Company',
+    category: 'Management Consulting',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 20,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'Annual performance bonus (15–25%) + strong NPS/retiral benefits.',
+    policySummary: '50% Basic, Full 12% EPF, ~20% annual variable.'
+  },
+  {
+    name: 'Deloitte',
+    category: 'Big 4 / Consulting',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'TS',
+    rsuNote: 'No RSUs; annual AIP variable bonus (10–20%) paid in June/September cycle.',
+    policySummary: '45% Basic, Full 12% EPF, 15% variable bonus, 80CCD(2) NPS supported.'
+  },
+  {
+    name: 'PwC',
+    category: 'Big 4 / Consulting',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Annual performance bonus (10–20%) depending on grade and utilization.',
+    policySummary: '45% Basic, Full 12% EPF, 15% variable bonus.'
+  },
+  {
+    name: 'EY',
+    category: 'Big 4 / Consulting',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Annual variable bonus (10–20%) + flexible benefit basket.',
+    policySummary: '45% Basic, Full 12% EPF, 15% variable bonus.'
+  },
+  {
+    name: 'KPMG',
+    category: 'Big 4 / Consulting',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'Annual performance variable (10–18%) included in CTC.',
+    policySummary: '45% Basic, Full 12% EPF, 15% variable bonus.'
+  },
+
+  // IT Services & Global GCCs
+  {
+    name: 'TCS',
+    category: 'IT Services',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Includes Quarterly Variable Allowance (QVA) + Annual Performance Incentive in CTC.',
+    policySummary: '50% Basic, Full 12% EPF, ~15% variable (QVA + annual), Gratuity in CTC.'
+  },
+  {
+    name: 'Infosys',
+    category: 'IT Services',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Senior roles (JL6+) receive RSU grants; 10–20% variable pay.',
+    policySummary: '50% Basic, Full 12% EPF, 15% variable bonus.'
+  },
+  {
+    name: 'Wipro',
+    category: 'IT Services',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Quarterly/Annual variable pay (10–20%) embedded in total CTC.',
+    policySummary: '50% Basic, Full 12% EPF, 15% variable pay.'
+  },
+  {
+    name: 'HCLTech',
+    category: 'IT Services',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'HR',
+    rsuNote: 'EPB (Employee Performance Bonus) forms 10–20% of CTC.',
+    policySummary: '50% Basic, Full 12% EPF, 15% performance bonus.'
+  },
+  {
+    name: 'Accenture',
+    category: 'IT & Consulting',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 18,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Variable pay ranges 15–21% based on Management Level + ESPP discount.',
+    policySummary: '45% Basic, Full 12% EPF, ~18% variable bonus, 80CCD(2) NPS enabled.'
+  },
+  {
+    name: 'Cognizant',
+    category: 'IT Services',
+    basicPct: 45,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'TN',
+    rsuNote: 'Annual Incentive Plan (AIP) 10–20% included in CTC.',
+    policySummary: '45% Basic, Full 12% EPF, 15% AIP variable.'
+  },
+  {
+    name: 'Walmart Global Tech',
+    category: 'Retail Tech / GCC',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Annual RSU grants + 15% MIP cash bonus + stock purchase match.',
+    policySummary: '40% Basic, Full 12% EPF, 15% MIP bonus, 80CCD(2) NPS available.'
+  },
+  {
+    name: 'Target India',
+    category: 'Retail Tech / GCC',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'RSUs for Principal/Director+ levels; 10–15% annual bonus.',
+    policySummary: '40% Basic, Full 12% EPF, 15% annual bonus.'
+  },
+
+  // BFSI & Investment Banks
+  {
+    name: 'Goldman Sachs',
+    category: 'Investment Banking / Quant',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 20,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Discretionary year-end bonus (15–35%+ of base) partly delivered in RSUs at VP+ levels.',
+    policySummary: '50% Basic, Full 12% EPF, ~20% discretionary bonus, 80CCD(2) NPS supported.'
+  },
+  {
+    name: 'JPMorgan Chase',
+    category: 'Investment Banking / GCC',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Annual IC bonus (10–25%) + RSU grants at VP/ED levels.',
+    policySummary: '50% Basic, Full 12% EPF, 15% annual bonus, strong NPS & retiral options.'
+  },
+  {
+    name: 'Morgan Stanley',
+    category: 'Investment Banking / GCC',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Year-end discretionary bonus + deferred equity at senior grades.',
+    policySummary: '50% Basic, Full 12% EPF, 15% variable bonus.'
+  },
+  {
+    name: 'Barclays',
+    category: 'Investment Banking / GCC',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Annual discretionary bonus (10–20%) + pension/NPS flexibility.',
+    policySummary: '50% Basic, Full 12% EPF, 15% annual bonus.'
+  },
+  {
+    name: 'HDFC Bank',
+    category: 'Indian Banking / BFSI',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Performance bonus + ESOPs for senior management; includes superannuation/PF.',
+    policySummary: '50% Basic, Full 12% EPF, 15% performance bonus.'
+  },
+  {
+    name: 'ICICI Bank',
+    category: 'Indian Banking / BFSI',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 15,
+    npsAllowed: true,
+    defaultState: 'MH',
+    rsuNote: 'Performance bonus + ESOPs at Chief Manager+ grades.',
+    policySummary: '50% Basic, Full 12% EPF, 15% performance bonus.'
+  },
+
+  // Generic Archetypes
+  {
+    name: 'Standard MNC / GCC (50% Basic, Full EPF)',
+    category: 'Archetype Template',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Standard corporate structure: 50% Basic, 12% Employer & Employee EPF, Gratuity inside CTC.',
+    policySummary: '50% Basic, Full 12% EPF, 100% Fixed CTC.'
+  },
+  {
+    name: 'High-Growth Tech / Startup (40% Basic, Capped EPF)',
+    category: 'Archetype Template',
+    basicPct: 40,
+    hraPct: 50,
+    epfMode: 'capped',
+    gratuityInCtc: true,
+    variablePct: 0,
+    npsAllowed: false,
+    defaultState: 'KA',
+    rsuNote: 'Optimized for maximum monthly take-home cash: 40% Basic and ₹1,800/mo statutory EPF cap.',
+    policySummary: '40% Basic, Capped ₹1,800/mo EPF, 100% Fixed CTC.'
+  }
+];
+
+// ============================================================================
+// 2. WORK STATE / PROFESSIONAL TAX CONFIGURATION
+// ============================================================================
+const STATES_CONFIG = {
+  HR: { code: 'HR', name: 'Haryana / Delhi NCR (Gurgaon, Noida)', monthlyPT: 0 },
+  KA: { code: 'KA', name: 'Karnataka (Bengaluru)', monthlyPT: 200 },
+  MH: { code: 'MH', name: 'Maharashtra (Mumbai, Pune)', monthlyPT: 200 },
+  TS: { code: 'TS', name: 'Telangana (Hyderabad)', monthlyPT: 200 },
+  TN: { code: 'TN', name: 'Tamil Nadu (Chennai)', monthlyPT: 208 },
+  WB: { code: 'WB', name: 'West Bengal (Kolkata)', monthlyPT: 200 }
+};
+
+// ============================================================================
+// 3. SMART COMPANY INFERENCE ENGINE (FOR ANY FREE-TEXT COMPANY NAME)
+// ============================================================================
+function inferCompanyStructure(companyInput) {
+  const clean = (companyInput || '').trim();
+  if (!clean) {
+    return {
+      ...COMPANY_DATABASE.find((c) => c.name.startsWith('Standard MNC')),
+      matchedName: 'Standard MNC Structure',
+      isInferred: true,
+      confidence: 'Default'
+    };
+  }
+
+  const lower = clean.toLowerCase();
+
+  // 1. Exact or substring match in built-in 45+ database
+  const exactMatch = COMPANY_DATABASE.find(
+    (c) => c.name.toLowerCase() === lower || lower.includes(c.name.toLowerCase().split(' ')[0])
+  );
+  if (exactMatch && lower.length >= 2) {
+    return {
+      ...exactMatch,
+      matchedName: exactMatch.name,
+      isInferred: false,
+      confidence: 'Verified Profile'
+    };
+  }
+
+  // 2. Keyword heuristic inference for unknown companies
+  if (/(bank|capital|securities|finance|finserv|asset|wealth|insurance|amc|mutual)/i.test(lower)) {
+    return {
+      name: clean,
+      matchedName: clean,
+      category: 'BFSI / Financial Services (Inferred)',
+      basicPct: 50,
+      hraPct: 50,
+      epfMode: 'full',
+      gratuityInCtc: true,
+      variablePct: 15,
+      npsAllowed: true,
+      defaultState: 'MH',
+      rsuNote: 'BFSI firms typically include 10–20% annual performance bonus and full 12% EPF.',
+      policySummary: 'Inferred BFSI structure: 50% Basic, Full 12% EPF, 15% variable bonus.',
+      isInferred: true,
+      confidence: 'Smart Inferred (BFSI)'
+    };
+  }
+
+  if (/(consult|advisory|partners|strategy|audit|associates)/i.test(lower)) {
+    return {
+      name: clean,
+      matchedName: clean,
+      category: 'Consulting & Advisory (Inferred)',
+      basicPct: 45,
+      hraPct: 50,
+      epfMode: 'full',
+      gratuityInCtc: true,
+      variablePct: 15,
+      npsAllowed: true,
+      defaultState: 'HR',
+      rsuNote: 'Consulting firms typically structure 45% Basic, full EPF, and 15% performance bonus.',
+      policySummary: 'Inferred Consulting structure: 45% Basic, Full 12% EPF, 15% variable.',
+      isInferred: true,
+      confidence: 'Smart Inferred (Consulting)'
+    };
+  }
+
+  if (/(labs|ai|tech|pay|fin|cloud|stack|io|hq|ventures|digital|ware|byte|app)/i.test(lower)) {
+    return {
+      name: clean,
+      matchedName: clean,
+      category: 'Modern Tech / Startup (Inferred)',
+      basicPct: 40,
+      hraPct: 50,
+      epfMode: 'capped',
+      gratuityInCtc: true,
+      variablePct: 0,
+      npsAllowed: false,
+      defaultState: 'KA',
+      rsuNote: 'Product startups typically keep 40% Basic and ₹1,800/mo capped EPF to maximize monthly cash.',
+      policySummary: 'Inferred Tech Startup structure: 40% Basic, Capped ₹1,800/mo EPF, 100% fixed cash.',
+      isInferred: true,
+      confidence: 'Smart Inferred (Tech)'
+    };
+  }
+
+  // Generic corporate fallback
+  return {
+    name: clean,
+    matchedName: clean,
+    category: 'Corporate / MNC (Inferred)',
+    basicPct: 50,
+    hraPct: 50,
+    epfMode: 'full',
+    gratuityInCtc: true,
+    variablePct: 10,
+    npsAllowed: true,
+    defaultState: 'KA',
+    rsuNote: 'Standard Indian corporate CTC structure with 50% Basic, full 12% EPF, and 10% variable pay.',
+    policySummary: 'Inferred Corporate structure: 50% Basic, Full 12% EPF, 10% variable.',
+    isInferred: true,
+    confidence: 'Smart Inferred (Corporate)'
+  };
+}
+
+// ============================================================================
+// 4. FY 2026-27 INDIAN INCOME TAX & PAYROLL CALCULATION ENGINE
+// ============================================================================
+function calculateNewRegimeTaxFY2627(taxableIncome) {
+  if (taxableIncome <= 0) {
+    return { slabTax: 0, rebate87A: 0, surcharge: 0, marginalRelief: 0, cess: 0, totalTax: 0, surchargeRate: 0 };
+  }
+
+  // FY 2026-27 New Tax Regime Slabs:
+  // 0 - 4L: 0%
+  // 4L - 8L: 5% (max 20,000)
+  // 8L - 12L: 10% (max 40,000)
+  // 12L - 16L: 15% (max 60,000)
+  // 16L - 20L: 20% (max 80,000)
+  // 20L - 24L: 25% (max 1,00,000)
+  // > 24L: 30%
+  const computeSlabOnly = (inc) => {
+    let tax = 0;
+    if (inc > 400000) tax += Math.min(inc - 400000, 400000) * 0.05;
+    if (inc > 800000) tax += Math.min(inc - 800000, 400000) * 0.10;
+    if (inc > 1200000) tax += Math.min(inc - 1200000, 400000) * 0.15;
+    if (inc > 1600000) tax += Math.min(inc - 1600000, 400000) * 0.20;
+    if (inc > 2000000) tax += Math.min(inc - 2000000, 400000) * 0.25;
+    if (inc > 2400000) tax += (inc - 2400000) * 0.30;
+    return tax;
+  };
+
+  let slabTax = computeSlabOnly(taxableIncome);
+  let rebate87A = 0;
+
+  // Section 87A Rebate: Full tax rebate up to ₹12,00,000 taxable income (up to ₹60,000)
+  // Plus marginal relief just above ₹12,00,000
+  if (taxableIncome <= 1200000) {
+    rebate87A = slabTax;
+    slabTax = 0;
+  } else if (taxableIncome <= 1275000) {
+    const excessIncome = taxableIncome - 1200000;
+    if (slabTax > excessIncome) {
+      rebate87A = slabTax - excessIncome;
+      slabTax = excessIncome;
+    }
+  }
+
+  // Surcharge calculation with Marginal Relief
+  let surchargeRate = 0;
+  if (taxableIncome > 20000000) {
+    surchargeRate = 0.25; // Capped at 25% under New Regime even above ₹5 Cr
+  } else if (taxableIncome > 10000000) {
+    surchargeRate = 0.15;
+  } else if (taxableIncome > 5000000) {
+    surchargeRate = 0.10;
+  }
+
+  let rawSurcharge = slabTax * surchargeRate;
+  let marginalRelief = 0;
+
+  // Marginal relief at ₹50L, ₹1Cr, ₹2Cr thresholds
+  const thresholds = [
+    { limit: 5000000, prevRate: 0 },
+    { limit: 10000000, prevRate: 0.10 },
+    { limit: 20000000, prevRate: 0.15 }
+  ];
+
+  for (const t of thresholds) {
+    if (taxableIncome > t.limit && taxableIncome <= t.limit + 1500000) {
+      const taxAtLimit = computeSlabOnly(t.limit);
+      const totalAtLimit = taxAtLimit * (1 + t.prevRate);
+      const currentPreCess = slabTax + rawSurcharge;
+      const maxAllowedPreCess = totalAtLimit + (taxableIncome - t.limit);
+      if (currentPreCess > maxAllowedPreCess) {
+        marginalRelief = currentPreCess - maxAllowedPreCess;
+        rawSurcharge = Math.max(0, rawSurcharge - marginalRelief);
+      }
+    }
+  }
+
+  const taxPlusSurcharge = slabTax + rawSurcharge;
+  const cess = taxPlusSurcharge * 0.04;
+  const totalTax = Math.round((taxPlusSurcharge + cess) / 10) * 10;
+
+  return {
+    slabTax: Math.round(slabTax),
+    rebate87A: Math.round(rebate87A),
+    surcharge: Math.round(rawSurcharge),
+    marginalRelief: Math.round(marginalRelief),
+    cess: Math.round(cess),
+    totalTax,
+    surchargeRate: surchargeRate * 100
+  };
+}
+
+function calculateOldRegimeTax(taxableIncome) {
+  if (taxableIncome <= 0) {
+    return { slabTax: 0, rebate87A: 0, surcharge: 0, marginalRelief: 0, cess: 0, totalTax: 0, surchargeRate: 0 };
+  }
+
+  const computeOldSlab = (inc) => {
+    let tax = 0;
+    if (inc > 250000) tax += Math.min(inc - 250000, 250000) * 0.05;
+    if (inc > 500000) tax += Math.min(inc - 500000, 500000) * 0.20;
+    if (inc > 1000000) tax += (inc - 1000000) * 0.30;
+    return tax;
+  };
+
+  let slabTax = computeOldSlab(taxableIncome);
+  let rebate87A = 0;
+  if (taxableIncome <= 500000) {
+    rebate87A = slabTax;
+    slabTax = 0;
+  }
+
+  let surchargeRate = 0;
+  if (taxableIncome > 50000000) surchargeRate = 0.37;
+  else if (taxableIncome > 20000000) surchargeRate = 0.25;
+  else if (taxableIncome > 10000000) surchargeRate = 0.15;
+  else if (taxableIncome > 5000000) surchargeRate = 0.10;
+
+  let rawSurcharge = slabTax * surchargeRate;
+  let marginalRelief = 0;
+
+  const thresholds = [
+    { limit: 5000000, prevRate: 0 },
+    { limit: 10000000, prevRate: 0.10 },
+    { limit: 20000000, prevRate: 0.15 },
+    { limit: 50000000, prevRate: 0.25 }
+  ];
+
+  for (const t of thresholds) {
+    if (taxableIncome > t.limit && taxableIncome <= t.limit + 2000000) {
+      const taxAtLimit = computeOldSlab(t.limit);
+      const totalAtLimit = taxAtLimit * (1 + t.prevRate);
+      const currentPreCess = slabTax + rawSurcharge;
+      const maxAllowedPreCess = totalAtLimit + (taxableIncome - t.limit);
+      if (currentPreCess > maxAllowedPreCess) {
+        marginalRelief = currentPreCess - maxAllowedPreCess;
+        rawSurcharge = Math.max(0, rawSurcharge - marginalRelief);
+      }
+    }
+  }
+
+  const cess = (slabTax + rawSurcharge) * 0.04;
+  const totalTax = Math.round((slabTax + rawSurcharge + cess) / 10) * 10;
+
+  return {
+    slabTax: Math.round(slabTax),
+    rebate87A: Math.round(rebate87A),
+    surcharge: Math.round(rawSurcharge),
+    marginalRelief: Math.round(marginalRelief),
+    cess: Math.round(cess),
+    totalTax,
+    surchargeRate: surchargeRate * 100
+  };
+}
+
+// ============================================================================
+// 5. FORMATTING HELPERS (INDIAN NUMBERING SYSTEM)
+// ============================================================================
+function formatINR(amount, showDecimals = false) {
+  if (isNaN(amount) || amount === null) return '₹0';
+  const isNeg = amount < 0;
+  const absVal = Math.abs(amount);
+  const formatted = new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    minimumFractionDigits: showDecimals ? 2 : 0,
+    maximumFractionDigits: showDecimals ? 2 : 0
+  }).format(absVal);
+  return isNeg ? `-${formatted}` : formatted;
+}
+
+function formatCompactINR(amount) {
+  const abs = Math.abs(amount);
+  if (abs >= 10000000) {
+    return `₹${(amount / 10000000).toFixed(2).replace(/\.00$/, '')} Cr`;
+  }
+  if (abs >= 100000) {
+    return `₹${(amount / 100000).toFixed(2).replace(/\.00$/, '')} L`;
+  }
+  return formatINR(amount);
+}
+
+function formatIndianCommas(numStr) {
+  const digits = String(numStr).replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  return Number(digits).toLocaleString('en-IN');
+}
+
+// ============================================================================
+// 6. MAIN REACT APPLICATION COMPONENT
+// ============================================================================
+function App() {
+  // Primary Inputs
+  const [ctcInput, setCtcInput] = useState('1,20,00,000');
+  const [companyQuery, setCompanyQuery] = useState('Google');
+  const [selectedProfile, setSelectedProfile] = useState(() => inferCompanyStructure('Google'));
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Customization Overrides
+  const [basicPct, setBasicPct] = useState(40);
+  const [hraPct, setHraPct] = useState(50);
+  const [epfMode, setEpfMode] = useState('full'); // 'full' | 'capped'
+  const [gratuityInCtc, setGratuityInCtc] = useState(true);
+  const [variablePct, setVariablePct] = useState(15);
+  const [employerNpsPct, setEmployerNpsPct] = useState(0); // 0 to 14% of Basic u/s 80CCD(2)
+  const [workState, setWorkState] = useState('KA');
+  const [taxRegime, setTaxRegime] = useState('new'); // 'new' | 'old'
+  const [oldRegimeDeductions, setOldRegimeDeductions] = useState(450000); // 80C + 80D + HRA exemption
+  const [showAdvancedControls, setShowAdvancedControls] = useState(true);
+
+  const dropdownRef = useRef(null);
+
+  // Close autocomplete dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Apply company profile whenever user picks or types a company
+  const applyCompanyProfile = (companyName) => {
+    const profile = inferCompanyStructure(companyName);
+    setSelectedProfile(profile);
+    setBasicPct(profile.basicPct);
+    setHraPct(profile.hraPct);
+    setEpfMode(profile.epfMode);
+    setGratuityInCtc(profile.gratuityInCtc);
+    setVariablePct(profile.variablePct);
+    setWorkState(profile.defaultState);
+    setEmployerNpsPct(0);
+  };
+
+  const handleCompanySelect = (companyObj) => {
+    setCompanyQuery(companyObj.name);
+    setDropdownOpen(false);
+    applyCompanyProfile(companyObj.name);
+  };
+
+  const handleCompanyInputChange = (e) => {
+    const val = e.target.value;
+    setCompanyQuery(val);
+    setDropdownOpen(true);
+    applyCompanyProfile(val);
+  };
+
+  const filteredCompanies = useMemo(() => {
+    const q = companyQuery.trim().toLowerCase();
+    if (!q) return COMPANY_DATABASE;
+    return COMPANY_DATABASE.filter(
+      (c) => c.name.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)
+    );
+  }, [companyQuery]);
+
+  const numericCtc = useMemo(() => {
+    const cleaned = Number(String(ctcInput).replace(/[^0-9]/g, ''));
+    return isNaN(cleaned) ? 0 : cleaned;
+  }, [ctcInput]);
+
+  // ==========================================================================
+  // CORE PAYROLL & TAX CALCULATION MEMO
+  // ==========================================================================
+  const breakdown = useMemo(() => {
+    const totalCtc = Math.max(0, numericCtc);
+
+    // 1. Variable / Performance Bonus split from Total CTC
+    const annualVariableBonus = Math.round(totalCtc * (variablePct / 100));
+    const fixedCtc = totalCtc - annualVariableBonus;
+
+    // 2. Basic Salary & HRA (calculated on Fixed CTC)
+    const annualBasic = Math.round(fixedCtc * (basicPct / 100));
+    const annualHra = Math.round(annualBasic * (hraPct / 100));
+
+    // 3. Employer Retirals embedded inside Fixed CTC
+    const annualEmployerEpf =
+      epfMode === 'full' ? Math.round(annualBasic * 0.12) : Math.min(21600, Math.round(annualBasic * 0.12));
+
+    const annualGratuity = gratuityInCtc ? Math.round(annualBasic * 0.0481) : 0;
+
+    // Employer NPS u/s 80CCD(2) - carved out of Special Allowance inside Fixed CTC
+    const maxNpsRate = taxRegime === 'new' ? 14 : 10;
+    const effectiveNpsPct = Math.min(employerNpsPct, maxNpsRate);
+    const annualEmployerNps = Math.round(annualBasic * (effectiveNpsPct / 100));
+
+    // 4. Special Allowance (balancing figure of Fixed CTC)
+    const rawSpecialAllowance =
+      fixedCtc - (annualBasic + annualHra + annualEmployerEpf + annualGratuity + annualEmployerNps);
+    const annualSpecialAllowance = Math.max(0, rawSpecialAllowance);
+
+    // 5. Gross Salary (Taxable Salary Base before deductions)
+    const grossFixedSalary = annualBasic + annualHra + annualSpecialAllowance;
+    const grossTotalSalary = grossFixedSalary + annualVariableBonus;
+
+    // 6. Standard Deduction & Chapter VI-A Deductions
+    const standardDeduction = taxRegime === 'new' ? Math.min(75000, grossTotalSalary) : Math.min(50000, grossTotalSalary);
+    const npsDeduction = annualEmployerNps; // Deductible u/s 80CCD(2) in both regimes
+    const extraOldDeductions = taxRegime === 'old' ? Math.min(oldRegimeDeductions, Math.max(0, grossTotalSalary - standardDeduction)) : 0;
+
+    const netTaxableIncome = Math.max(
+      0,
+      grossTotalSalary - standardDeduction - npsDeduction - extraOldDeductions
+    );
+
+    // Also compute Taxable Income for Fixed Salary alone (to isolate monthly fixed TDS vs bonus TDS)
+    const fixedTaxableIncome = Math.max(
+      0,
+      grossFixedSalary - standardDeduction - npsDeduction - extraOldDeductions
+    );
+
+    // 7. Compute Income Tax (Total & Fixed-only)
+    const taxResult =
+      taxRegime === 'new'
+        ? calculateNewRegimeTaxFY2627(netTaxableIncome)
+        : calculateOldRegimeTax(netTaxableIncome);
+
+    const fixedTaxResult =
+      taxRegime === 'new'
+        ? calculateNewRegimeTaxFY2627(fixedTaxableIncome)
+        : calculateOldRegimeTax(fixedTaxableIncome);
+
+    // Also calculate tax WITHOUT Employer NPS to display exact tax saved by NPS
+    const taxableWithoutNps = netTaxableIncome + npsDeduction;
+    const taxWithoutNps =
+      taxRegime === 'new'
+        ? calculateNewRegimeTaxFY2627(taxableWithoutNps).totalTax
+        : calculateOldRegimeTax(taxableWithoutNps).totalTax;
+    const npsTaxSaved = Math.max(0, taxWithoutNps - taxResult.totalTax);
+
+    // 8. Employee Statutory Deductions
+    const annualEmployeeEpf =
+      epfMode === 'full' ? Math.round(annualBasic * 0.12) : Math.min(21600, Math.round(annualBasic * 0.12));
+
+    const monthlyPT = STATES_CONFIG[workState]?.monthlyPT ?? 200;
+    const annualPT = monthlyPT * 12;
+
+    // 9. Net In-Hand Calculations
+    // Annual Total Net In-Hand (including post-tax variable bonus)
+    const annualTotalInHand = Math.max(
+      0,
+      grossTotalSalary - taxResult.totalTax - annualEmployeeEpf - annualPT
+    );
+
+    // Annual Fixed Net In-Hand (excluding variable bonus, using fixed-salary TDS)
+    const annualFixedInHand = Math.max(
+      0,
+      grossFixedSalary - fixedTaxResult.totalTax - annualEmployeeEpf - annualPT
+    );
+
+    const monthlyFixedInHand = Math.round(annualFixedInHand / 12);
+    const monthlyAvgWithBonus = Math.round(annualTotalInHand / 12);
+
+    // Bonus TDS & Net Bonus
+    const bonusTax = Math.max(0, taxResult.totalTax - fixedTaxResult.totalTax);
+    const netAnnualBonus = Math.max(0, annualVariableBonus - bonusTax);
+
+    // Total Wealth Created (In-Hand + Employee EPF + Employer EPF + Employer NPS + Gratuity)
+    const annualRetirementWealth = annualEmployeeEpf + annualEmployerEpf + annualEmployerNps + annualGratuity;
+    const effectiveTaxRate = totalCtc > 0 ? ((taxResult.totalTax / totalCtc) * 100).toFixed(1) : '0.0';
+    const inHandPctOfCtc = totalCtc > 0 ? ((annualTotalInHand / totalCtc) * 100).toFixed(1) : '0.0';
+
+    // Surcharge cliff proximity check (₹50L and ₹1Cr)
+    let cliffAlert = null;
+    if (taxRegime === 'new') {
+      if (netTaxableIncome > 10000000 && netTaxableIncome <= 11200000) {
+        cliffAlert = {
+          type: 'crossed_1cr',
+          title: 'Just Above ₹1 Crore Surcharge Cliff (15% Surcharge Active)',
+          message: `Your taxable income (${formatINR(netTaxableIncome)}) is ${formatINR(
+            netTaxableIncome - 10000000
+          )} above ₹1 Cr, triggering a 15% surcharge instead of 10%. Enabling 14% Employer NPS u/s 80CCD(2) can pull you back under ₹1 Cr and save up to ₹4.4+ lakh in tax.`
+        };
+      } else if (netTaxableIncome > 9200000 && netTaxableIncome <= 10000000) {
+        cliffAlert = {
+          type: 'near_1cr',
+          title: 'Close to ₹1 Crore Surcharge Cliff (Headroom: ' + formatINR(10000000 - netTaxableIncome) + ')',
+          message: `You are currently in the 10% surcharge bracket. Any extra bonus, FD interest, or capital gains exceeding ${formatINR(
+            10000000 - netTaxableIncome
+          )} will push your surcharge from 10% to 15% across your entire tax liability.`
+        };
+      } else if (netTaxableIncome > 5000000 && netTaxableIncome <= 5600000) {
+        cliffAlert = {
+          type: 'crossed_50l',
+          title: 'Just Above ₹50 Lakh Surcharge Threshold (10% Surcharge Active)',
+          message: `Your taxable income (${formatINR(netTaxableIncome)}) crossed ₹50L by ${formatINR(
+            netTaxableIncome - 5000000
+          )}. Employer NPS u/s 80CCD(2) can reduce taxable income below ₹50L to eliminate the 10% surcharge.`
+        };
+      }
+    }
+
+    return {
+      totalCtc,
+      fixedCtc,
+      annualVariableBonus,
+      netAnnualBonus,
+      bonusTax,
+      annualBasic,
+      annualHra,
+      annualSpecialAllowance,
+      annualEmployerEpf,
+      annualGratuity,
+      annualEmployerNps,
+      effectiveNpsPct,
+      grossFixedSalary,
+      grossTotalSalary,
+      standardDeduction,
+      npsDeduction,
+      extraOldDeductions,
+      netTaxableIncome,
+      taxResult,
+      fixedTaxResult,
+      npsTaxSaved,
+      annualEmployeeEpf,
+      monthlyPT,
+      annualPT,
+      annualTotalInHand,
+      annualFixedInHand,
+      monthlyFixedInHand,
+      monthlyAvgWithBonus,
+      annualRetirementWealth,
+      effectiveTaxRate,
+      inHandPctOfCtc,
+      cliffAlert
+    };
+  }, [
+    numericCtc,
+    basicPct,
+    hraPct,
+    epfMode,
+    gratuityInCtc,
+    variablePct,
+    employerNpsPct,
+    workState,
+    taxRegime,
+    oldRegimeDeductions
+  ]);
+
+  // Preset CTC chips
+  const ctcPresets = [
+    { label: '30 LPA', val: '30,00,000' },
+    { label: '50 LPA', val: '50,00,000' },
+    { label: '75 LPA', val: '75,00,000' },
+    { label: '1 Cr', val: '1,00,00,000' },
+    { label: '1.2 Cr', val: '1,20,00,000' },
+    { label: '1.5 Cr', val: '1,50,00,000' }
+  ];
+
+  // Visual bar segments (percentages of Total CTC)
+  const chartSegments = useMemo(() => {
+    const total = Math.max(1, breakdown.totalCtc);
+    const inHandFixedPct = (breakdown.annualFixedInHand / total) * 100;
+    const netBonusPct = (breakdown.netAnnualBonus / total) * 100;
+    const taxPct = (breakdown.taxResult.totalTax / total) * 100;
+    const epfNpsPct =
+      ((breakdown.annualEmployeeEpf + breakdown.annualEmployerEpf + breakdown.annualEmployerNps) / total) * 100;
+    const gratuityPtPct = ((breakdown.annualGratuity + breakdown.annualPT) / total) * 100;
+
+    return [
+      { label: 'Net Fixed In-Hand', pct: inHandFixedPct, amount: breakdown.annualFixedInHand, color: 'bg-emerald-500', dot: 'bg-emerald-500' },
+      ...(breakdown.netAnnualBonus > 0
+        ? [{ label: 'Post-Tax Bonus', pct: netBonusPct, amount: breakdown.netAnnualBonus, color: 'bg-teal-400', dot: 'bg-teal-400' }]
+        : []),
+      { label: 'Income Tax + Surcharge + Cess', pct: taxPct, amount: breakdown.taxResult.totalTax, color: 'bg-rose-500', dot: 'bg-rose-500' },
+      {
+        label: 'EPF & NPS Retirement Corpus',
+        pct: epfNpsPct,
+        amount: breakdown.annualEmployeeEpf + breakdown.annualEmployerEpf + breakdown.annualEmployerNps,
+        color: 'bg-indigo-500',
+        dot: 'bg-indigo-500'
+      },
+      {
+        label: 'Gratuity & Prof. Tax',
+        pct: gratuityPtPct,
+        amount: breakdown.annualGratuity + breakdown.annualPT,
+        color: 'bg-amber-400',
+        dot: 'bg-amber-400'
+      }
+    ];
+  }, [breakdown]);
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans pb-16">
+      {/* Top Executive Header */}
+      <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-950/50">
+              <Calculator className="w-5 h-5 text-slate-950 stroke-[2.2]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white">
+                  India CTC &amp; In-Hand Analyzer
+                </h1>
+                <span className="px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  FY 2026–27
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Company-specific salary structuring, EPF/NPS optimization &amp; surcharge engine
+              </p>
+            </div>
+          </div>
+
+          {/* Tax Regime Switcher */}
+          <div className="flex items-center gap-2 bg-slate-800/90 p-1 rounded-xl border border-slate-700 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setTaxRegime('new')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                taxRegime === 'new'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              New Tax Regime (Default)
+            </button>
+            <button
+              type="button"
+              onClick={() => setTaxRegime('old')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                taxRegime === 'old'
+                  ? 'bg-indigo-500 text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              Old Tax Regime
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        {/* ====================================================================
+            SECTION 1: PRIMARY INPUT BAR (CTC + COMPANY AUTOCOMPLETE)
+           ==================================================================== */}
+        <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Annual CTC Input */}
+            <div className="lg:col-span-6 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Coins className="w-3.5 h-3.5 text-emerald-600" />
+                  Annual CTC (Cost to Company)
+                </label>
+                <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  {formatCompactINR(numericCtc)} / yr
+                </span>
+              </div>
+
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-bold text-slate-400">
+                  ₹
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={ctcInput}
+                  onChange={(e) => setCtcInput(formatIndianCommas(e.target.value))}
+                  placeholder="e.g. 1,20,00,000"
+                  className="w-full pl-10 pr-24 py-3.5 text-xl sm:text-2xl font-bold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 tabular-nums transition-all"
+                />
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 uppercase">
+                  INR / Year
+                </span>
+              </div>
+
+              {/* Quick CTC Preset Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[11px] font-medium text-slate-400 mr-1">Quick select:</span>
+                {ctcPresets.map((preset) => {
+                  const isActive = ctcInput === preset.val;
+                  return (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => setCtcInput(preset.val)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                        isActive
+                          ? 'bg-slate-900 text-white shadow-sm'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Company Name Search & Auto-Inference */}
+            <div className="lg:col-span-6 space-y-3" ref={dropdownRef}>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-indigo-600" />
+                  Employer / Company Name
+                </label>
+                <span
+                  className={`text-[11px] font-semibold px-2.5 py-0.5 rounded-full flex items-center gap-1 ${
+                    selectedProfile.isInferred
+                      ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                      : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  {selectedProfile.confidence}
+                </span>
+              </div>
+
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={companyQuery}
+                  onFocus={() => setDropdownOpen(true)}
+                  onChange={handleCompanyInputChange}
+                  placeholder="Type any company (e.g. Google, Amazon, TCS, Razorpay, BCG...)"
+                  className="w-full pl-10 pr-10 py-3.5 text-base sm:text-lg font-semibold text-slate-900 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((o) => !o)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                  aria-label="Toggle company list"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+
+                {/* Autocomplete Dropdown */}
+                {dropdownOpen && (
+                  <div className="absolute z-40 mt-1.5 w-full bg-white rounded-xl border border-slate-200 shadow-xl max-h-72 overflow-y-auto divide-y divide-slate-100">
+                    {filteredCompanies.length > 0 ? (
+                      filteredCompanies.map((comp) => (
+                        <button
+                          key={comp.name}
+                          type="button"
+                          onClick={() => handleCompanySelect(comp)}
+                          className="w-full text-left px-4 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 transition-colors"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-slate-900">{comp.name}</div>
+                            <div className="text-[11px] text-slate-500">{comp.policySummary}</div>
+                          </div>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600 shrink-0">
+                            {comp.category.split('/')[0].trim()}
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-4 text-xs text-slate-600">
+                        <div className="font-semibold text-slate-800 mb-1">
+                          Smart Archetype Active for &ldquo;{companyQuery}&rdquo;
+                        </div>
+                        <p>{selectedProfile.policySummary}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Quick Company Chips */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[11px] font-medium text-slate-400 mr-1">Popular:</span>
+                {['Google', 'Amazon', 'Microsoft', 'Razorpay', 'TCS', 'BCG', 'Goldman Sachs'].map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => {
+                      setCompanyQuery(name);
+                      applyCompanyProfile(name);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                      companyQuery.toLowerCase() === name.toLowerCase()
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Detected Company Policy Banner */}
+          <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/80 rounded-xl p-3.5">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 mt-0.5 shrink-0">
+                <Briefcase className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-bold text-slate-900">
+                    {selectedProfile.matchedName} Compensation Blueprint
+                  </span>
+                  <span className="text-[11px] font-medium text-slate-500">
+                    • {selectedProfile.category}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">{selectedProfile.policySummary}</p>
+                <p className="text-[11px] text-indigo-700 mt-1 font-medium">
+                  Equity / Bonus Note: <span className="text-slate-600 font-normal">{selectedProfile.rsuNote}</span>
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => applyCompanyProfile(companyQuery)}
+              className="self-start md:self-center shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition-colors"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              Reset to {selectedProfile.matchedName.split(' ')[0]} Defaults
+            </button>
+          </div>
+        </section>
+
+        {/* ====================================================================
+            SECTION 2: HERO KPI CARDS (MONTHLY IN-HAND, TAX, RETIRALS)
+           ==================================================================== */}
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Card 1: Monthly Fixed In-Hand */}
+          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950 text-white rounded-2xl p-5 shadow-md border border-slate-800 relative overflow-hidden">
+            <div className="flex items-center justify-between text-emerald-300 text-xs font-bold uppercase tracking-wider">
+              <span>Monthly Fixed In-Hand</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            </div>
+            <div className="mt-2.5 text-3xl sm:text-[32px] font-extrabold tracking-tight tabular-nums text-white">
+              {formatINR(breakdown.monthlyFixedInHand)}
+            </div>
+            <div className="mt-2 text-xs text-slate-300 flex items-center justify-between">
+              <span>Annual Fixed Net:</span>
+              <span className="font-semibold text-emerald-300 tabular-nums">
+                {formatCompactINR(breakdown.annualFixedInHand)}
+              </span>
+            </div>
+            {breakdown.annualVariableBonus > 0 && (
+              <div className="mt-2 pt-2 border-t border-white/10 text-[11px] text-emerald-200 flex items-center justify-between">
+                <span>Avg w/ Post-Tax Bonus:</span>
+                <span className="font-bold tabular-nums">{formatINR(breakdown.monthlyAvgWithBonus)}/mo</span>
+              </div>
+            )}
+          </div>
+
+          {/* Card 2: Total Income Tax & Surcharge */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm">
+            <div className="flex items-center justify-between text-rose-600 text-xs font-bold uppercase tracking-wider">
+              <span>Income Tax ({taxRegime === 'new' ? 'New' : 'Old'})</span>
+              <Landmark className="w-4 h-4 text-rose-500" />
+            </div>
+            <div className="mt-2.5 text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums">
+              {formatINR(Math.round(breakdown.taxResult.totalTax / 12))}
+              <span className="text-xs font-medium text-slate-400">/mo</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-500 flex items-center justify-between">
+              <span>Annual Tax + Cess:</span>
+              <span className="font-semibold text-rose-600 tabular-nums">
+                {formatCompactINR(breakdown.taxResult.totalTax)} ({breakdown.effectiveTaxRate}%)
+              </span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+              <span>Surcharge Tier:</span>
+              <span className="font-semibold text-slate-700">
+                {breakdown.taxResult.surchargeRate > 0
+                  ? `${breakdown.taxResult.surchargeRate}% Surcharge + 4% Cess`
+                  : '0% Surcharge (4% Cess only)'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 3: Monthly Statutory Deductions */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm">
+            <div className="flex items-center justify-between text-indigo-600 text-xs font-bold uppercase tracking-wider">
+              <span>Monthly EPF &amp; PT</span>
+              <PiggyBank className="w-4 h-4 text-indigo-500" />
+            </div>
+            <div className="mt-2.5 text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums">
+              {formatINR(Math.round(breakdown.annualEmployeeEpf / 12) + breakdown.monthlyPT)}
+              <span className="text-xs font-medium text-slate-400">/mo</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-500 flex items-center justify-between">
+              <span>Employee EPF:</span>
+              <span className="font-semibold text-slate-700 tabular-nums">
+                {formatINR(Math.round(breakdown.annualEmployeeEpf / 12))}/mo
+              </span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+              <span>Professional Tax ({workState}):</span>
+              <span className="font-semibold text-slate-700 tabular-nums">
+                {formatINR(breakdown.monthlyPT)}/mo
+              </span>
+            </div>
+          </div>
+
+          {/* Card 4: Annual Retirement & Retiral Wealth */}
+          <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-sm">
+            <div className="flex items-center justify-between text-teal-700 text-xs font-bold uppercase tracking-wider">
+              <span>Retiral Wealth Added</span>
+              <TrendingUp className="w-4 h-4 text-teal-600" />
+            </div>
+            <div className="mt-2.5 text-2xl sm:text-3xl font-extrabold text-slate-900 tabular-nums">
+              {formatCompactINR(breakdown.annualRetirementWealth)}
+              <span className="text-xs font-medium text-slate-400">/yr</span>
+            </div>
+            <div className="mt-2 text-xs text-slate-500 flex items-center justify-between">
+              <span>Total EPF (Emp + Empr):</span>
+              <span className="font-semibold text-slate-700 tabular-nums">
+                {formatCompactINR(breakdown.annualEmployeeEpf + breakdown.annualEmployerEpf)}
+              </span>
+            </div>
+            <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] text-slate-500 flex items-center justify-between">
+              <span>NPS + Gratuity:</span>
+              <span className="font-semibold text-teal-700 tabular-nums">
+                {formatCompactINR(breakdown.annualEmployerNps + breakdown.annualGratuity)}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        {/* Surcharge Cliff Alert Banner (if applicable) */}
+        {breakdown.cliffAlert && (
+          <div className="bg-amber-50 border border-amber-300/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-sm font-bold text-amber-950">{breakdown.cliffAlert.title}</h3>
+                <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">
+                  {breakdown.cliffAlert.message}
+                </p>
+              </div>
+            </div>
+            {employerNpsPct < 14 && (
+              <button
+                type="button"
+                onClick={() => setEmployerNpsPct(14)}
+                className="shrink-0 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-sm transition-colors"
+              >
+                Apply 14% Employer NPS
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ====================================================================
+            SECTION 3: VISUAL CTC ALLOCATION BAR
+           ==================================================================== */}
+        <section className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Where Every Rupee of Your CTC Goes</h2>
+              <p className="text-xs text-slate-500">
+                Total Net Cash In-Hand represents <strong className="text-emerald-700">{breakdown.inHandPctOfCtc}%</strong> of your {formatCompactINR(breakdown.totalCtc)} CTC
+              </p>
+            </div>
+            <div className="text-xs font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-lg self-start sm:self-auto">
+              Net Taxable Income: <span className="text-slate-900 tabular-nums">{formatINR(breakdown.netTaxableIncome)}</span>
+            </div>
+          </div>
+
+          {/* Stacked Bar */}
+          <div className="w-full h-5 rounded-full overflow-hidden flex bg-slate-100 p-0.5 gap-0.5">
+            {chartSegments.map((seg) =>
+              seg.pct > 0.3 ? (
+                <div
+                  key={seg.label}
+                  style={{ width: `${seg.pct}%` }}
+                  title={`${seg.label}: ${formatINR(seg.amount)} (${seg.pct.toFixed(1)}%)`}
+                  className={`${seg.color} h-full first:rounded-l-full last:rounded-r-full transition-all duration-300`}
+                />
+              ) : null
+            )}
+          </div>
+
+          {/* Legend */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-4">
+            {chartSegments.map((seg) => (
+              <div key={seg.label} className="bg-slate-50 rounded-xl p-2.5 border border-slate-100">
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${seg.dot}`} />
+                  <span className="text-[11px] font-medium text-slate-600 truncate">{seg.label}</span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between gap-1">
+                  <span className="text-sm font-bold text-slate-900 tabular-nums">
+                    {formatCompactINR(seg.amount)}
+                  </span>
+                  <span className="text-[11px] font-semibold text-slate-500 tabular-nums">
+                    {seg.pct.toFixed(1)}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ====================================================================
+            SECTION 4: TWO-COLUMN WORKSPACE (CUSTOMIZATION + DETAILED PAYSLIP)
+           ==================================================================== */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* LEFT COLUMN (5 cols): Salary Structure & Tax Optimization Controls */}
+          <section className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+                <h2 className="text-base font-bold text-slate-900">Structure &amp; Tax Optimizer</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedControls((s) => !s)}
+                className="lg:hidden text-xs font-semibold text-indigo-600 flex items-center gap-1"
+              >
+                {showAdvancedControls ? 'Hide' : 'Show'}
+                {showAdvancedControls ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+
+            {showAdvancedControls && (
+              <div className="space-y-5">
+                {/* 1. EPF Policy Toggle */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Provident Fund (EPF) Policy</label>
+                    <span className="text-[11px] font-semibold text-indigo-600">
+                      {epfMode === 'full' ? '12% of Basic' : 'Capped ₹1,800/mo'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEpfMode('full')}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        epfMode === 'full'
+                          ? 'bg-indigo-50 border-indigo-500 text-indigo-950 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">Full 12% of Basic</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">Standard MNCs / Consulting</div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEpfMode('capped')}
+                      className={`p-2.5 rounded-xl border text-left transition-all ${
+                        epfMode === 'capped'
+                          ? 'bg-emerald-50 border-emerald-500 text-emerald-950 shadow-xs'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <div className="text-xs font-bold">Capped ₹1,800/mo</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">Max Monthly In-Hand Cash</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Employer NPS u/s 80CCD(2) Slider */}
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                      Employer NPS u/s 80CCD(2)
+                    </label>
+                    <span className="text-xs font-extrabold text-emerald-700 bg-white px-2 py-0.5 rounded border border-emerald-200 tabular-nums">
+                      {breakdown.effectiveNpsPct}% of Basic
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={taxRegime === 'new' ? 14 : 10}
+                    step="1"
+                    value={breakdown.effectiveNpsPct}
+                    onChange={(e) => setEmployerNpsPct(Number(e.target.value))}
+                    className="w-full accent-emerald-600 cursor-pointer"
+                  />
+                  <div className="flex items-center justify-between text-[11px] text-emerald-800">
+                    <span>Contribution: {formatINR(breakdown.annualEmployerNps)}/yr</span>
+                    {breakdown.npsTaxSaved > 0 ? (
+                      <span className="font-bold text-emerald-700">
+                        Saves {formatINR(breakdown.npsTaxSaved)}/yr in tax!
+                      </span>
+                    ) : (
+                      <span>Up to {taxRegime === 'new' ? '14%' : '10%'} tax-free</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Basic Salary % Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Basic Salary (% of Fixed CTC)</label>
+                    <span className="text-xs font-bold text-slate-900 tabular-nums">
+                      {basicPct}% ({formatCompactINR(breakdown.annualBasic)}/yr)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="35"
+                    max="60"
+                    step="1"
+                    value={basicPct}
+                    onChange={(e) => setBasicPct(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>35% (Startup)</span>
+                    <span>40% (Tech)</span>
+                    <span>50% (MNC)</span>
+                    <span>60%</span>
+                  </div>
+                </div>
+
+                {/* 4. Variable / Performance Bonus % Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">Variable / Annual Bonus (% of CTC)</label>
+                    <span className="text-xs font-bold text-slate-900 tabular-nums">
+                      {variablePct}% ({formatCompactINR(breakdown.annualVariableBonus)}/yr)
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="30"
+                    step="1"
+                    value={variablePct}
+                    onChange={(e) => setVariablePct(Number(e.target.value))}
+                    className="w-full accent-indigo-600 cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400">
+                    <span>0% (100% Fixed)</span>
+                    <span>10%</span>
+                    <span>15%</span>
+                    <span>20%</span>
+                    <span>30%</span>
+                  </div>
+                </div>
+
+                {/* 5. Work State (Professional Tax) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                    Work Location (Professional Tax)
+                  </label>
+                  <select
+                    value={workState}
+                    onChange={(e) => setWorkState(e.target.value)}
+                    className="w-full px-3 py-2 text-xs font-semibold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    {Object.values(STATES_CONFIG).map((st) => (
+                      <option key={st.code} value={st.code}>
+                        {st.name} — ₹{st.monthlyPT}/mo PT
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 6. Gratuity in CTC Toggle */}
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <div>
+                    <div className="text-xs font-bold text-slate-700">Gratuity Part of CTC (4.81% Basic)</div>
+                    <div className="text-[11px] text-slate-500">
+                      Deducted from fixed CTC ({formatINR(breakdown.annualGratuity)}/yr)
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setGratuityInCtc((g) => !g)}
+                    className={`w-11 h-6 rounded-full transition-colors p-0.5 ${
+                      gratuityInCtc ? 'bg-indigo-600' : 'bg-slate-300'
+                    }`}
+                  >
+                    <div
+                      className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform ${
+                        gratuityInCtc ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Old Regime Extra Deductions Input (only when Old Regime selected) */}
+                {taxRegime === 'old' && (
+                  <div className="p-3.5 rounded-xl bg-indigo-50/70 border border-indigo-200 space-y-2">
+                    <label className="text-xs font-bold text-indigo-950 block">
+                      Old Regime Exemptions (HRA + 80C + 80D + Home Loan)
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={formatIndianCommas(oldRegimeDeductions)}
+                      onChange={(e) => {
+                        const v = Number(String(e.target.value).replace(/[^0-9]/g, ''));
+                        setOldRegimeDeductions(isNaN(v) ? 0 : v);
+                      }}
+                      className="w-full px-3 py-2 text-sm font-bold text-slate-900 bg-white border border-indigo-300 rounded-lg tabular-nums"
+                    />
+                    <p className="text-[11px] text-indigo-700">
+                      Tip: Under New Regime FY 2026–27, you save{' '}
+                      <strong>
+                        {formatINR(
+                          Math.abs(
+                            calculateNewRegimeTaxFY2627(
+                              Math.max(0, breakdown.grossTotalSalary - 75000 - breakdown.npsDeduction)
+                            ).totalTax - breakdown.taxResult.totalTax
+                          )
+                        )}
+                      </strong>{' '}
+                      compared to Old Regime with these deductions.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+
+          {/* RIGHT COLUMN (7 cols): Complete Payslip-Style Monthly & Annual Breakdown */}
+          <section className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+            <div className="px-5 sm:px-6 py-4 bg-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+                <h2 className="text-base font-bold">Complete Salary &amp; Deduction Statement</h2>
+              </div>
+              <span className="text-xs text-slate-300">
+                {selectedProfile.matchedName} • {taxRegime === 'new' ? 'New Regime FY 26–27' : 'Old Regime'}
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3 px-5">Salary Component</th>
+                    <th className="py-3 px-4 text-right">Monthly (₹)</th>
+                    <th className="py-3 px-5 text-right">Annual (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm">
+                  {/* GROUP A: GROSS EARNINGS */}
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={3} className="py-2 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      1. Gross Cash Earnings
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-800">
+                      Basic Salary <span className="text-xs text-slate-400">({basicPct}% of Fixed)</span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-700">
+                      {formatINR(Math.round(breakdown.annualBasic / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums font-medium text-slate-900">
+                      {formatINR(breakdown.annualBasic)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-800">
+                      House Rent Allowance (HRA) <span className="text-xs text-slate-400">({hraPct}% of Basic)</span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-700">
+                      {formatINR(Math.round(breakdown.annualHra / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums font-medium text-slate-900">
+                      {formatINR(breakdown.annualHra)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-800">
+                      Special / Flexible Allowance
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-700">
+                      {formatINR(Math.round(breakdown.annualSpecialAllowance / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums font-medium text-slate-900">
+                      {formatINR(breakdown.annualSpecialAllowance)}
+                    </td>
+                  </tr>
+                  <tr className="bg-slate-50/80 font-semibold">
+                    <td className="py-2.5 px-5 text-slate-900">Gross Fixed Salary (A)</td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-900">
+                      {formatINR(Math.round(breakdown.grossFixedSalary / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-slate-900">
+                      {formatINR(breakdown.grossFixedSalary)}
+                    </td>
+                  </tr>
+
+                  {/* GROUP B: EMPLOYER CONTRIBUTIONS IN CTC */}
+                  <tr className="bg-slate-50/60">
+                    <td colSpan={3} className="py-2 px-5 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      2. Employer Retiral Contributions (Part of Fixed CTC)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Employer EPF Contribution{' '}
+                      <span className="text-xs text-slate-400">
+                        ({epfMode === 'full' ? '12% Basic' : 'Capped ₹1,800/mo'})
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-600">
+                      {formatINR(Math.round(breakdown.annualEmployerEpf / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-slate-800">
+                      {formatINR(breakdown.annualEmployerEpf)}
+                    </td>
+                  </tr>
+                  {breakdown.annualEmployerNps > 0 && (
+                    <tr className="bg-emerald-50/40">
+                      <td className="py-2.5 px-5 font-medium text-emerald-900">
+                        Employer NPS Contribution u/s 80CCD(2){' '}
+                        <span className="text-xs text-emerald-600">({breakdown.effectiveNpsPct}% Basic)</span>
+                      </td>
+                      <td className="py-2.5 px-4 text-right tabular-nums text-emerald-800">
+                        {formatINR(Math.round(breakdown.annualEmployerNps / 12))}
+                      </td>
+                      <td className="py-2.5 px-5 text-right tabular-nums font-semibold text-emerald-900">
+                        {formatINR(breakdown.annualEmployerNps)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Gratuity Provision <span className="text-xs text-slate-400">(4.81% of Basic)</span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-slate-600">
+                      {formatINR(Math.round(breakdown.annualGratuity / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-slate-800">
+                      {formatINR(breakdown.annualGratuity)}
+                    </td>
+                  </tr>
+
+                  {/* GROUP C: MONTHLY DEDUCTIONS FROM GROSS */}
+                  <tr className="bg-rose-50/50">
+                    <td colSpan={3} className="py-2 px-5 text-[11px] font-bold uppercase tracking-wider text-rose-700">
+                      3. Statutory &amp; Tax Deductions (On Fixed Salary)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Employee EPF Contribution
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-rose-600">
+                      -{formatINR(Math.round(breakdown.annualEmployeeEpf / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                      -{formatINR(breakdown.annualEmployeeEpf)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Professional Tax <span className="text-xs text-slate-400">({workState})</span>
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-rose-600">
+                      -{formatINR(breakdown.monthlyPT)}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                      -{formatINR(breakdown.annualPT)}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Income Tax (Base Slab Tax on Fixed)
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-rose-600">
+                      -{formatINR(Math.round(breakdown.fixedTaxResult.slabTax / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                      -{formatINR(breakdown.fixedTaxResult.slabTax)}
+                    </td>
+                  </tr>
+                  {breakdown.fixedTaxResult.surcharge > 0 && (
+                    <tr>
+                      <td className="py-2.5 px-5 font-medium text-slate-700">
+                        Surcharge ({breakdown.fixedTaxResult.surchargeRate}%)
+                        {breakdown.fixedTaxResult.marginalRelief > 0 && (
+                          <span className="ml-1.5 text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold">
+                            Marginal Relief Applied
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-4 text-right tabular-nums text-rose-600">
+                        -{formatINR(Math.round(breakdown.fixedTaxResult.surcharge / 12))}
+                      </td>
+                      <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                        -{formatINR(breakdown.fixedTaxResult.surcharge)}
+                      </td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="py-2.5 px-5 font-medium text-slate-700">
+                      Health &amp; Education Cess (4%)
+                    </td>
+                    <td className="py-2.5 px-4 text-right tabular-nums text-rose-600">
+                      -{formatINR(Math.round(breakdown.fixedTaxResult.cess / 12))}
+                    </td>
+                    <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                      -{formatINR(breakdown.fixedTaxResult.cess)}
+                    </td>
+                  </tr>
+
+                  {/* NET FIXED IN-HAND ROW */}
+                  <tr className="bg-emerald-50 border-t-2 border-emerald-500">
+                    <td className="py-3.5 px-5 font-extrabold text-emerald-950 text-base">
+                      Net Fixed In-Hand Take-Home
+                    </td>
+                    <td className="py-3.5 px-4 text-right tabular-nums font-extrabold text-emerald-700 text-base sm:text-lg">
+                      {formatINR(breakdown.monthlyFixedInHand)}
+                    </td>
+                    <td className="py-3.5 px-5 text-right tabular-nums font-extrabold text-emerald-900 text-base">
+                      {formatINR(breakdown.annualFixedInHand)}
+                    </td>
+                  </tr>
+
+                  {/* GROUP D: VARIABLE BONUS SECTION (IF > 0) */}
+                  {breakdown.annualVariableBonus > 0 && (
+                    <>
+                      <tr className="bg-indigo-50/50">
+                        <td
+                          colSpan={3}
+                          className="py-2 px-5 text-[11px] font-bold uppercase tracking-wider text-indigo-700"
+                        >
+                          4. Annual Performance / Variable Bonus ({variablePct}% of CTC)
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 px-5 font-medium text-slate-700">
+                          Gross Annual Variable Bonus
+                        </td>
+                        <td className="py-2.5 px-4 text-right tabular-nums text-slate-400 text-xs">
+                          Paid Annually
+                        </td>
+                        <td className="py-2.5 px-5 text-right tabular-nums font-medium text-slate-900">
+                          {formatINR(breakdown.annualVariableBonus)}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="py-2.5 px-5 font-medium text-slate-700">
+                          TDS on Variable Bonus (Marginal Rate)
+                        </td>
+                        <td className="py-2.5 px-4 text-right tabular-nums text-slate-400 text-xs">—</td>
+                        <td className="py-2.5 px-5 text-right tabular-nums text-rose-600">
+                          -{formatINR(breakdown.bonusTax)}
+                        </td>
+                      </tr>
+                      <tr className="bg-slate-900 text-white font-bold">
+                        <td className="py-3 px-5">
+                          Total Net In-Hand (Fixed + Post-Tax Bonus)
+                        </td>
+                        <td className="py-3 px-4 text-right tabular-nums text-emerald-300">
+                          {formatINR(breakdown.monthlyAvgWithBonus)}/mo avg
+                        </td>
+                        <td className="py-3 px-5 text-right tabular-nums text-emerald-300">
+                          {formatINR(breakdown.annualTotalInHand)}
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        {/* Footnote / Disclaimer */}
+        <footer className="text-center text-[11px] text-slate-400 pt-2">
+          Calculations follow Indian Income Tax slabs &amp; surcharge rules for FY 2026–27 (AY 2027–28), including ₹75,000 standard deduction under New Regime, Section 87A rebate up to ₹12L, marginal surcharge relief at ₹50L/₹1Cr/₹2Cr, and Section 80CCD(2) Employer NPS up to 14% of Basic.
+        </footer>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
+  </script>
+</body>
+</html>
